@@ -3,21 +3,20 @@ name: Build Branch Artifacts
 on:
   push:
     branches:
-      - feature/*
-      - 'feature-*'
+      - "feature/*"
+      - "feature-*"
   workflow_dispatch:
     inputs:
       branch:
-        description: 'Branch to build'
+        description: "Branch to build"
         required: false
-        default: ''
+        default: ""
 
 jobs:
   build:
     runs-on: windows-latest
     permissions:
       contents: read
-      packages: read
 
     steps:
       - name: Checkout
@@ -29,53 +28,57 @@ jobs:
         id: branch
         run: |
           $branch = "${{ github.event.inputs.branch }}"
-          if (-not $branch) {
-            $branch = $env:GITHUB_REF -replace 'refs/heads/', ''
-          }
+          if (-not $branch) { $branch = $env:GITHUB_REF -replace 'refs/heads/', '' }
           $branchName = $branch -replace '/', '-'
           echo "name=$branchName" >> $env:GITHUB_OUTPUT
-          echo "Branch name: $branch"
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          node-version: '18'
-          cache: 'npm'
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            apps/teacher/src-tauri
+            apps/student/src-tauri
+
+      - name: Install tauri-cli
+        run: cargo install tauri-cli --version "^2" --locked
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install Pillow
         run: pip install Pillow
-
-      - name: Install dependencies
-        run: npm ci
 
       - name: Generate icons
         run: python build/convert-icons.py
         env:
           PYTHONIOENCODING: utf-8
 
-      - name: Build verify-password.exe
-        run: npm run build:verify
+      - name: Build Teacher
+        run: cd apps/teacher && cargo tauri build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ""
 
-      - name: Build Teacher installer
-        run: npm run build:teacher -- --publish never
-
-      - name: Build Student installer
-        run: npx electron-builder --config electron-builder-student.json --publish never
+      - name: Build Student
+        run: cd apps/student && cargo tauri build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ""
 
       - name: Rename installers
         run: |
-          Get-ChildItem "dist/teacher/*.exe" | ForEach-Object {
-            $newName = $_.Name -replace ' ', '-'
-            if ($_.Name -ne $newName) { Rename-Item $_.FullName $newName }
+          Get-ChildItem "apps/teacher/src-tauri/target/release/bundle/nsis/*.exe" | ForEach-Object {
+            $n = $_.Name -replace ' ', '-'
+            if ($_.Name -ne $n) { Rename-Item $_.FullName $n }
           }
-          Get-ChildItem "dist/student/*.exe" | ForEach-Object {
-            $newName = $_.Name -replace ' ', '-'
-            if ($_.Name -ne $newName) { Rename-Item $_.FullName $newName }
+          Get-ChildItem "apps/student/src-tauri/target/release/bundle/nsis/*.exe" | ForEach-Object {
+            $n = $_.Name -replace ' ', '-'
+            if ($_.Name -ne $n) { Rename-Item $_.FullName $n }
           }
 
       - name: Upload artifacts
@@ -83,27 +86,6 @@ jobs:
         with:
           name: installers-${{ steps.branch.outputs.name }}
           path: |
-            dist/teacher/*.exe
-            dist/student/*.exe
+            apps/teacher/src-tauri/target/release/bundle/nsis/*.exe
+            apps/student/src-tauri/target/release/bundle/nsis/*.exe
           retention-days: 7
-
-      - name: Build Summary
-        run: |
-          echo "## Build Summary" >> $env:GITHUB_STEP_SUMMARY
-          echo "" >> $env:GITHUB_STEP_SUMMARY
-          echo "**Branch:** ${{ steps.branch.outputs.name }}" >> $env:GITHUB_STEP_SUMMARY
-          echo "**Commit:** ${{ github.sha }}" >> $env:GITHUB_STEP_SUMMARY
-          echo "" >> $env:GITHUB_STEP_SUMMARY
-          echo "### Installers" >> $env:GITHUB_STEP_SUMMARY
-          echo "" >> $env:GITHUB_STEP_SUMMARY
-          Get-ChildItem "dist/teacher/*.exe" | ForEach-Object {
-            $size = [math]::Round($_.Length / 1MB, 2)
-            echo "- Teacher: $($_.Name) ($size MB)" >> $env:GITHUB_STEP_SUMMARY
-          }
-          Get-ChildItem "dist/student/*.exe" | ForEach-Object {
-            $size = [math]::Round($_.Length / 1MB, 2)
-            echo "- Student: $($_.Name) ($size MB)" >> $env:GITHUB_STEP_SUMMARY
-          }
-          echo "" >> $env:GITHUB_STEP_SUMMARY
-          echo "### Download Artifacts" >> $env:GITHUB_STEP_SUMMARY
-          echo "The installers are available as workflow artifacts for 7 days." >> $env:GITHUB_STEP_SUMMARY

@@ -36,28 +36,31 @@ function ClassroomApp() {
     useEffect(() => { settingsRef.current = settings; }, [settings]);
 
     useEffect(() => {
-        if (window.electronAPI?.getSettings) {
-            window.electronAPI.getSettings().then(saved => {
-                if (!saved) return;
-                const next = { ...settingsRef.current, ...saved };
-                settingsRef.current = next;
-                setSettings(next);
-                if (socketRef.current && socketRef.current.connected) {
-                    socketRef.current.emit('host-settings', next);
-                }
-            });
-        }
+        if (!window.__TAURI__) return;
+        window.__TAURI__.core.invoke('get_settings').then(saved => {
+            if (!saved) return;
+            const next = { ...settingsRef.current, ...saved };
+            settingsRef.current = next;
+            setSettings(next);
+            if (socketRef.current && socketRef.current.connected) {
+                socketRef.current.emit('host-settings', next);
+            }
+        });
     }, []);
 
     const handleSettingsChange = (key, value) => {
         const next = { ...settingsRef.current, [key]: value };
         setSettings(next);
         if (socketRef.current) socketRef.current.emit('host-settings', next);
-        window.electronAPI?.saveSettings?.(next);
+        window.__TAURI__?.core.invoke('save_settings_cmd', { settings: next });
     };
 
     useEffect(() => {
-        socketRef.current = window.io();
+        // 教师端启动时 Rust 通过 initialization_script 注入了 token
+        // 直接传入 socket auth，让服务端识别 host 角色
+        socketRef.current = window.io(undefined, {
+            auth: { token: window.__SYNCCLASSROOM_HOST_TOKEN__ || '' }
+        });
 
         socketRef.current.on('role-assigned', (data) => {
             setIsHost(data.role === 'host');
@@ -73,7 +76,7 @@ function ClassroomApp() {
                 if (data.role !== 'host') {
                     const fs = data.hostSettings?.forceFullscreen ?? true;
                     if (data.hostSettings) setSettings(s => ({ ...s, ...data.hostSettings }));
-                    window.electronAPI?.classStarted({ forceFullscreen: fs });
+                    window.__TAURI__?.core.invoke('class_started', { opts: { forceFullscreen: fs } });
                 }
             }
 
@@ -87,11 +90,11 @@ function ClassroomApp() {
 
         socketRef.current.on('host-settings', (s) => {
             setSettings(s);
-            window.electronAPI?.setFullscreen(s.forceFullscreen);
+            window.__TAURI__?.core.invoke('set_fullscreen', { enable: s.forceFullscreen });
         });
 
         socketRef.current.on('set-admin-password', (data) => {
-            window.electronAPI?.setAdminPassword?.(data.hash);
+            window.__TAURI__?.core.invoke('set_admin_password', { hash: data.hash });
         });
 
         socketRef.current.on('course-changed', (data) => {
@@ -100,7 +103,7 @@ function ClassroomApp() {
             loadCourse(data.courseId, courseCatalogRef.current);
             const fs = data.hostSettings?.forceFullscreen ?? true;
             if (data.hostSettings) setSettings(s => ({ ...s, ...data.hostSettings }));
-            window.electronAPI?.classStarted({ forceFullscreen: fs });
+            window.__TAURI__?.core.invoke('class_started', { opts: { forceFullscreen: fs } });
         });
 
         socketRef.current.on('course-ended', () => {
@@ -109,7 +112,7 @@ function ClassroomApp() {
             window.CourseData = null;
             window.CameraManager.release();
             if (window._onCamActive) window._onCamActive(false);
-            window.electronAPI?.classEnded();
+            window.__TAURI__?.core.invoke('class_ended');
         });
 
         socketRef.current.on('course-catalog-updated', (data) => {
@@ -338,7 +341,7 @@ function ClassroomApp() {
     }
 
     if (!isHost && !currentCourseId) {
-        return <StudentWaitingRoom forceFullscreen={settings.forceFullscreen} />;
+        return <StudentWaitingRoom />;
     }
 
     if (isLoading) {

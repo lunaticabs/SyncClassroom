@@ -5,31 +5,36 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>互动课堂 - AI 教学系统</title>
 
-    <!-- 1. 引入 Tailwind CSS (优先局域网，自动缓存) -->
+    <!-- 1. Tailwind CSS -->
     <script src="/lib/tailwindcss.js" onerror="this.src='https://cdn.tailwindcss.com'"></script>
 
-    <!-- 2. 引入 FontAwesome 图标库 (优先局域网，自动缓存) -->
-    <link rel="stylesheet" href="/lib/fontawesome.all.min.css" onerror="this.href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'">
+    <!-- 2. FontAwesome -->
+    <link rel="stylesheet" href="/lib/fontawesome.all.min.css"
+          onerror="this.href='https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'">
 
-    <!-- 3. 引入 React 和 ReactDOM (优先局域网，自动缓存) -->
-    <script crossorigin src="/lib/react.development.js" onerror="this.src='https://unpkg.com/react@18/umd/react.development.js'"></script>
-    <script crossorigin src="/lib/react-dom.development.js" onerror="this.src='https://unpkg.com/react-dom@18/umd/react-dom.development.js'"></script>
+    <!-- 3. React + ReactDOM -->
+    <script crossorigin src="/lib/react.development.js"
+            onerror="this.src='https://unpkg.com/react@18/umd/react.development.js'"></script>
+    <script crossorigin src="/lib/react-dom.development.js"
+            onerror="this.src='https://unpkg.com/react-dom@18/umd/react-dom.development.js'"></script>
 
-    <!-- 4. 引入 Babel (优先局域网，自动缓存) -->
-    <script src="/lib/babel.min.js" onerror="this.src='https://unpkg.com/@babel/standalone/babel.min.js'"></script>
+    <!-- 4. Babel -->
+    <script src="/lib/babel.min.js"
+            onerror="this.src='https://unpkg.com/@babel/standalone/babel.min.js'"></script>
 
-    <!-- 5. 引入 Socket.io 客户端 (由 Node.js 后端自动提供) -->
-    <script src="/socket.io/socket.io.js"></script>
+    <!-- 5. Socket.io 客户端 -->
+    <script src="/lib/socket.io.min.js"
+            onerror="this.src='https://cdn.socket.io/4.7.5/socket.io.min.js'"></script>
 
-    <!-- 6. 引入 marked (Markdown 渲染) -->
-    <script src="/lib/marked.min.js" onerror="this.src='https://fastly.jsdelivr.net/npm/marked@9/marked.min.js'"></script>
+    <!-- 6. marked -->
+    <script src="/lib/marked.min.js"
+            onerror="this.src='https://fastly.jsdelivr.net/npm/marked@9/marked.min.js'"></script>
+
 
     <style>
-        /* 全局隐藏滚动条（保留滚动功能） */
         * { scrollbar-width: none; -ms-overflow-style: none; user-select: none; -webkit-user-select: none; }
         *::-webkit-scrollbar { display: none; }
 
-        /* Markdown 渲染样式 */
         .markdown-body { color: #334155; line-height: 1.7; }
         .markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 {
             font-weight: 700; margin: 1.2em 0 0.5em; color: #1e293b;
@@ -67,11 +72,8 @@
     </style>
 </head>
 <body class="bg-slate-900">
-    
-    <!-- React 会把所有的界面渲染到这个 div 里面 -->
     <div id="root"></div>
 
-    <!-- 同步引擎模块（按依赖顺序加载） -->
     <script type="text/babel" src="/engine/00-globals.js"></script>
     <script type="text/babel" src="/engine/01-settings-panel.js"></script>
     <script type="text/babel" src="/engine/02-classroom-view.js"></script>
@@ -82,9 +84,6 @@
     <script type="text/babel" src="/engine/07-camera-manager.js"></script>
     <script type="text/babel" src="/engine/08-app.js"></script>
 
-    <!-- 组件库 -->
     <script type="text/babel" src="/components/LogViewer.js"></script>
-    <script type="text/babel" src="/components/WindowControls.js"></script>
-
 </body>
 </html>

@@ -23,7 +23,7 @@ function SettingsPanel({ settings, onSettingsChange, socket, onClose, zIndex = '
 
     const handleOpenLogDir = async () => {
         try {
-            await window.electronAPI.openLogDir();
+            await window.__TAURI__.core.invoke('open_log_dir');
         } catch (err) {
             console.error('Failed to open log directory:', err);
             alert('无法打开日志目录');

@@ -162,24 +162,13 @@ function SyncClassroom({ title, slides, onEndCourse, socket, isHost: initialIsHo
                     </div>
                     <button
                         onClick={() => {
-                            if (window.electronAPI?.toggleFullscreen) {
-                                window.electronAPI.toggleFullscreen();
-                            } else {
-                                if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(err => console.log(err));
-                                else document.exitFullscreen().catch(err => console.log(err));
-                            }
+                            window.__TAURI__?.core.invoke('toggle_fullscreen');
                         }}
                         className="text-slate-400 hover:text-blue-500 transition-colors cursor-pointer bg-slate-50 w-10 h-10 rounded-lg border border-slate-200 hover:shadow-sm flex items-center justify-center"
                         title="进入/退出全屏"
                     >
                         <i className="fas fa-expand text-lg md:text-xl"></i>
                     </button>
-                    {!isHost && (
-                        <WindowControls forceFullscreen={settings.forceFullscreen} />
-                    )}
-                    {isHost && (
-                        <WindowControls />
-                    )}
                 </div>
             </div>
 

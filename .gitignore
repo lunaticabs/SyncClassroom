@@ -1,9 +1,19 @@
-lib
-weights
-node_modules
-.qoder
-images
-dist
-*.exe
-.kiro
-.vscode
+# Rust 构建产物
+target/
+apps/*/src-tauri/target/
+apps/*/src-tauri/gen/
+
+# Tauri 生成的图标（由 just icons 生成，不入库）
+apps/*/src-tauri/icons/*.png
+apps/*/src-tauri/icons/*.icns
+# .ico 保留（源文件在 build/，生成的同名文件也保留以便直接使用）
+
+# 运行时缓存（服务端缓存的 CDN 资源）
+public/lib/
+public/weights/
+public/images/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+*.log

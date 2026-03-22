@@ -1,0 +1,20 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "student-default",
+  "description": "SyncClassroom Student capabilities",
+  "local": true,
+  "windows": ["main", "admin"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-is-fullscreen",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-show",
+    "core:window:allow-hide",
+    "core:window:allow-close",
+    "core:window:allow-set-title",
+    "core:window:allow-create",
+    "core:app:allow-app-hide",
+    "opener:allow-open-path"
+  ]
+}

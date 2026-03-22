@@ -1,97 +1,99 @@
+#!/usr/bin/env python3
 """
-Convert assets/tray-icon.png to multi-size ICO files.
-Manually builds the ICO binary so every size is guaranteed to be embedded.
-Requires: Pillow (pip install Pillow)
-Usage: python build/convert-icons.py
+convert-icons.py  --  为 Tauri 构建生成所需的全套图标
+
+输出（每个 app）:
+  icons/icon.png          256x256，托盘 + 通用
+  icons/32x32.png
+  icons/128x128.png
+  icons/128x128@2x.png
+  icons/icon.ico          Windows NSIS 安装程序
+  icons/icon.icns         macOS app bundle（需要 pillow 或 cairosvg）
+
+依赖: pip install Pillow
 """
-import sys
-import os
-import io
-import struct
+import sys, shutil, struct, io
+from pathlib import Path
 from PIL import Image
 
-src_teacher = os.path.join(os.path.dirname(__file__), '..', 'assets', 'tray-icon.png')
-src_editor  = os.path.join(os.path.dirname(__file__), '..', 'assets', 'editor-icon.png')
-out_teacher = os.path.join(os.path.dirname(__file__), 'icon-teacher.ico')
-out_student = os.path.join(os.path.dirname(__file__), 'icon-student.ico')
-out_editor  = os.path.join(os.path.dirname(__file__), 'icon-editor.ico')
+ROOT   = Path(__file__).parent.parent
+ASSETS = ROOT / "assets"
+BUILD  = ROOT / "build"
 
-if not os.path.exists(src_teacher):
-    print('[icons] ERROR: source teacher icon not found: ' + src_teacher)
-    sys.exit(1)
+APPS = {
+    "teacher": {
+        "src_ico": BUILD  / "icon-teacher.ico",
+        "src_png": ASSETS / "tray-icon.png",
+        "out_dir": ROOT / "apps" / "teacher" / "src-tauri" / "icons",
+    },
+    "student": {
+        "src_ico": BUILD  / "icon-student.ico",
+        "src_png": ASSETS / "tray-icon.png",
+        "out_dir": ROOT / "apps" / "student" / "src-tauri" / "icons",
+    },
+}
 
-def build_ico(base_img, sizes):
+def make_icns(base_img: Image.Image, dest: Path):
     """
-    Build a valid ICO file containing one PNG-encoded frame per size.
-    ICO format:
-      ICONDIR  (6 bytes)
-      ICONDIRENTRY * n  (16 bytes each)
-      PNG data * n
+    用纯 Python 生成最小可用的 .icns（包含 ic07=128px、ic08=256px 两帧）。
+    不依赖 iconutil / macOS 工具链，跨平台可用。
     """
-    # Encode each size as PNG bytes
-    png_bufs = []
-    for s in sizes:
-        resized = base_img.resize((s, s), Image.LANCZOS)
+    ICON_TYPES = [
+        ("ic07", 128),
+        ("ic08", 256),
+        ("ic09", 512),
+    ]
+    chunks = []
+    for type_id, size in ICON_TYPES:
+        img = base_img.resize((size, size), Image.LANCZOS).convert("RGBA")
         buf = io.BytesIO()
-        resized.save(buf, format='PNG')
-        png_bufs.append(buf.getvalue())
+        img.save(buf, format="PNG")
+        png_data = buf.getvalue()
+        # icns chunk: 4字节 type + 4字节长度（含头部8字节）+ 数据
+        chunk_len = 8 + len(png_data)
+        chunks.append(type_id.encode() + struct.pack(">I", chunk_len) + png_data)
 
-    n = len(sizes)
-    header_size = 6 + 16 * n          # ICONDIR + all ICONDIRENTRYs
-    offsets = []
-    offset = header_size
-    for pb in png_bufs:
-        offsets.append(offset)
-        offset += len(pb)
+    total_len = 8 + sum(len(c) for c in chunks)
+    with open(dest, "wb") as f:
+        f.write(b"icns" + struct.pack(">I", total_len))
+        for c in chunks:
+            f.write(c)
 
-    out = io.BytesIO()
+for name, cfg in APPS.items():
+    out = cfg["out_dir"]
+    out.mkdir(parents=True, exist_ok=True)
 
-    # ICONDIR
-    out.write(struct.pack('<HHH', 0, 1, n))  # reserved=0, type=1(ICO), count=n
+    # 读取基础图像（优先从 .ico 提取最大帧）
+    try:
+        ico = Image.open(cfg["src_ico"])
+        frames = []
+        try:
+            while True:
+                frames.append(ico.copy())
+                ico.seek(ico.tell() + 1)
+        except EOFError:
+            pass
+        base = max(frames, key=lambda f: f.size[0]) if frames else ico
+    except Exception:
+        base = Image.open(cfg["src_png"])
 
-    # ICONDIRENTRYs
-    for i, s in enumerate(sizes):
-        w = 0 if s >= 256 else s
-        h = 0 if s >= 256 else s
-        out.write(struct.pack('<BBBBHHII',
-            w,              # width  (0 = 256)
-            h,              # height (0 = 256)
-            0,              # color count
-            0,              # reserved
-            1,              # planes
-            32,             # bit count
-            len(png_bufs[i]),  # size of image data
-            offsets[i],        # offset of image data
-        ))
+    base = base.convert("RGBA")
 
-    # PNG data
-    for pb in png_bufs:
-        out.write(pb)
+    # PNG 各尺寸
+    for size in [32, 128, 256]:
+        img = base.resize((size, size), Image.LANCZOS)
+        img.save(out / f"{size}x{size}.png")
+        if size == 128:
+            base.resize((256, 256), Image.LANCZOS).save(out / "128x128@2x.png")
+        if size == 256:
+            img.save(out / "icon.png")
 
-    return out.getvalue()
+    # Windows .ico
+    shutil.copy(cfg["src_ico"], out / "icon.ico")
 
-def generate_ico(src_path, out_path, sizes):
-    if not os.path.exists(src_path):
-        print(f'[icons] WARNING: {src_path} not found, using fallback.')
-        return False
-    
-    img = Image.open(src_path).convert('RGBA')
-    print(f'[icons] source {os.path.basename(src_path)} size: {img.size}')
-    
-    ico_data = build_ico(img, sizes)
-    with open(out_path, 'wb') as f:
-        f.write(ico_data)
-    print(f'[icons] OK: {out_path}')
-    return True
+    # macOS .icns（纯 Python，无需 iconutil）
+    make_icns(base, out / "icon.icns")
 
-SIZES = [16, 32, 48, 64, 128, 256]
+    print(f"[icons] {name}: OK  ({out.relative_to(ROOT)})")
 
-# Generate Teacher/Student icons from tray-icon.png
-generate_ico(src_teacher, out_teacher, SIZES)
-generate_ico(src_teacher, out_student, SIZES)
-
-# Generate Editor icon (prefer editor-icon.png, fallback to tray-icon.png)
-if not generate_ico(src_editor, out_editor, SIZES):
-    generate_ico(src_teacher, out_editor, SIZES)
-
-print('[icons] All icons processed.')
+print("[icons] All done.")

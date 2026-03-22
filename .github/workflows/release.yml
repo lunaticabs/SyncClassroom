@@ -1,109 +1,62 @@
-name: Build and Release
+name: Release
 
 on:
   push:
     tags:
-      - 'v*'
+      - "v*"
+  workflow_dispatch:
 
 jobs:
-  build:
+  release:
     runs-on: windows-latest
     permissions:
       contents: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
         with:
-          node-version: '18'
-          cache: 'npm'
+          targets: x86_64-pc-windows-msvc
+
+      - name: Cache Rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            apps/teacher/src-tauri
+            apps/student/src-tauri
+
+      - name: Install tauri-cli
+        run: cargo install tauri-cli --version "^2" --locked
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Install Pillow
         run: pip install Pillow
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Update version from tag
-        run: |
-          $tag = "${{ github.ref_name }}"
-          $version = $tag -replace '^v', ''
-          $json = Get-Content package.json -Raw | ConvertFrom-Json
-          $json.version = $version
-          $json | ConvertTo-Json -Depth 100 | Set-Content package.json -Encoding UTF8
 
       - name: Generate icons
         run: python build/convert-icons.py
         env:
           PYTHONIOENCODING: utf-8
 
-      - name: Build verify-password.exe
-        run: npm run build:verify
+      - name: Build Teacher
+        run: cd apps/teacher && cargo tauri build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
 
-      - name: Build Teacher installer
-        run: npm run build:teacher -- --publish never
-
-      - name: Build Student installer
-        run: npx electron-builder --config electron-builder-student.json --publish never
-
-      - name: Build Editor installer
-        run: npm run build:editor -- --publish never
-
-      - name: Get tag name
-        id: tag
-        run: echo "TAG=${GITHUB_REF#refs/tags/}" >> $env:GITHUB_OUTPUT
-
-      - name: Rename installers (remove spaces for upload)
-        run: |
-          Get-ChildItem "dist/teacher/*.exe" | ForEach-Object {
-            $newName = $_.Name -replace ' ', '-'
-            if ($_.Name -ne $newName) { Rename-Item $_.FullName $newName }
-          }
-          Get-ChildItem "dist/student/*.exe" | ForEach-Object {
-            $newName = $_.Name -replace ' ', '-'
-            if ($_.Name -ne $newName) { Rename-Item $_.FullName $newName }
-          }
-          Get-ChildItem "dist/editor/*.exe" | ForEach-Object {
-            $newName = $_.Name -replace ' ', '-'
-            if ($_.Name -ne $newName) { Rename-Item $_.FullName $newName }
-          }
+      - name: Build Student
+        run: cd apps/student && cargo tauri build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
-          name: SyncClassroom ${{ steps.tag.outputs.TAG }}
-          tag_name: ${{ steps.tag.outputs.TAG }}
-          draft: false
-          prerelease: ${{ contains(steps.tag.outputs.TAG, '-') }}
-          body: |
-            ## SyncClassroom ${{ steps.tag.outputs.TAG }}
-
-            ### Installation
-
-            | File | Description |
-            |------|-------------|
-            | `LumeSync-Teacher-Setup-*.exe` | Teacher installer, normal uninstall |
-            | `LumeSync-Student-Setup-*.exe` | Student installer, requires admin password to uninstall (default: `admin123`) |
-            | `LumeSync-Editor-Setup-*.exe` | AI Courseware Editor installer, integrated AI assistant |
-
-            ### Offline Install
-            Both installers are fully self-contained. No internet connection required after installation.
-
-            ### Student Notes
-            - Installation requires administrator privileges
-            - Automatically registers as a Windows service (auto-start on boot)
-            - Uninstall requires admin password
+          name: "SyncClassroom ${{ github.ref_name }}"
           files: |
-            dist/teacher/LumeSync-Teacher-Setup-*.exe
-            dist/student/LumeSync-Student-Setup-*.exe
-            dist/editor/LumeSync-Editor-Setup-*.exe
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            apps/teacher/src-tauri/target/release/bundle/nsis/*.exe
+            apps/student/src-tauri/target/release/bundle/nsis/*.exe
