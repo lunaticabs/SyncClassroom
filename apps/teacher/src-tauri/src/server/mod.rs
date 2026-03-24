@@ -34,10 +34,6 @@ pub fn build_router(app_state: SharedState) -> (Router<()>, SocketIo) {
 
     let public_dir = app_state.read().unwrap().public_dir.clone();
 
-    // socket.io 路由单独挂 socket_layer，不污染静态文件路由
-    let socket_router = Router::new()
-        .layer(socket_layer);
-
     let router = Router::new()
         .route("/api/courses",         get(api::get_courses))
         .route("/api/course-status",   get(api::get_course_status))
@@ -50,9 +46,9 @@ pub fn build_router(app_state: SharedState) -> (Router<()>, SocketIo) {
         .route("/webfonts/{filename}", get(proxy::webfonts_proxy))
         .route("/weights/{filename}",  get(proxy::weights_proxy))
         .route("/images/proxy",        get(proxy::image_proxy))
-        .merge(socket_router)
         .fallback_service(ServeDir::new(&public_dir))
         .layer(CorsLayer::permissive())
+        .layer(socket_layer)   // ← 移到这里，挂在整个 router 上
         .with_state(state);
 
     (router, io)

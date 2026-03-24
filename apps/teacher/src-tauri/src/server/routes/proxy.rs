@@ -35,6 +35,7 @@ fn known_url(filename: &str) -> Option<&'static str> {
         "babel.min.js"             => Some("https://unpkg.com/@babel/standalone/babel.min.js"),
         "face-api.min.js"          => Some("https://fastly.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"),
         "socket.io.min.js"         => Some("https://cdn.socket.io/4.7.5/socket.io.min.js"),
+        "marked.min.js"            => Some("https://fastly.jsdelivr.net/npm/marked@9/marked.min.js"),
         _                          => None,
     }
 }

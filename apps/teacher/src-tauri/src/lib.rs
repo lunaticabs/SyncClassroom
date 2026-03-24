@@ -95,19 +95,16 @@ pub fn run() {
         .setup(move |app| {
             let app_handle = app.handle().clone();
 
-            // ── 确定 public/ 目录路径 ─────────────────────────────
+            // ── 确定 public/ 目录路径 ─────────────────────
             let public_dir = {
                 #[cfg(debug_assertions)]
                 {
-                    // 开发模式：CARGO_MANIFEST_DIR = apps/teacher/src-tauri/
-                    // 往上三级就是项目根目录下的 public/
                     let p = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
                         .join("../../../public");
                     p.canonicalize().unwrap_or(p)
                 }
                 #[cfg(not(debug_assertions))]
                 {
-                    // 生产模式：资源已通过 bundle.resources 打包进去
                     app_handle
                         .path()
                         .resource_dir()
@@ -115,7 +112,7 @@ pub fn run() {
                         .join("public")
                 }
             };
-            log::info!("[setup] public_dir = {:?} (exists={})", public_dir, public_dir.exists());
+            eprintln!(">>> public_dir = {:?}, exists = {}", public_dir, public_dir.exists());
 
             // ── 初始化共享状态 ────────────────────────────
             let shared: SharedState = Arc::new(RwLock::new(AppState::new(
